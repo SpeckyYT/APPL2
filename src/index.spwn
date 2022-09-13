@@ -1,0 +1,164 @@
+default_filename = "file.basic"
+
+parse_line = (line: @string) -> @dictionary {
+    let spaced = line.split(" ")
+    return {
+        line: spaced.pop(0) as @number,
+        content: spaced.join(" "),
+    }
+}
+
+lex_command = (command: @string) {
+    let command = command.trim()
+
+    let words = []
+    let temp_word = ""
+
+    push_word = () {
+        if temp_word.length > 0 {
+            words.push(temp_word)
+            temp_word = ""
+        }
+    }
+
+    let i = 0
+    while i < command.length {
+        if command[i] == " " {
+            push_word()
+        } else if command[i] == '"' {
+            i++
+            let string = ""
+            while i < command.length {
+                if command[i] == '"' {
+                    break
+                } else {
+                    string += command[i]
+                }
+                i++
+            }
+            words.push('"{}"'.fmt(string))
+        } else {
+            temp_word += command[i]
+        }
+        i++
+    }
+    push_word()
+
+    return words
+}
+
+is_int = (string: @string) => string.find(r"^[0-9]+$")
+
+parse_command = (command: @string) -> @dictionary {
+    let words = lex_command(command)
+
+    let parsed = {
+        operator: "",
+        arguments: [],
+        other: [],
+        error: false,
+    }
+
+    error = () {
+        parsed.error = true
+    }
+
+    if words.length == 0 { return parsed }
+    match words[0] {
+        in "GOTO|GOSUB".split("|"): () {
+            parsed.operator = words.pop(0)
+            if words.length == 1 && is_int(words[0]) {
+                parsed.arguments.push(words[0])
+            } else { error() }
+        } (),
+    }
+
+    return parsed
+}
+
+type @basic_file
+impl @basic_file {
+    new: (filename: @string = default_filename) {
+        content = $.readfile(filename)
+        lines = content.replace(r"\r?\n","\n").split("\n").map(l => l.trim()).filter(l => l.length > 0)
+        
+        parsed = lines.map(l => parse_line(l)).sort((a,b) => a.line - b.line)
+
+        return @basic_file::{
+            file_path: filename,
+            lines: parsed,
+            index: 0,
+            variables: {},
+        }
+    },
+    update_line: (self, line: @number, content: @string) {
+        joined_line = {
+            line: line,
+            content: content,
+        }
+
+        if content.trim().length == 0 {
+            let self.lines = self.lines.filter(l => l.line != line) 
+        } else {
+            for i in 0..self.lines.length {
+                let break_state = false
+                // lmao, I could easily just push the line and sort it
+
+                match self.lines[i].line - line {
+                    <0: null, // if the line comes later (wait for the next iteration)
+                    ==0: () { // if this one's the line
+                        let self.lines[i].content = content
+                        break_state = true
+                    } (),
+                    >0: () { // if the line came before this one
+                        if i == 0 {
+                            let self.lines = [joined_line] + self.lines
+                        } else {
+                            let self.lines = self.lines[:i] + [joined_line] + self.lines[i:]
+                        }
+                        break_state = true
+                    } (),
+                }
+                if break_state { break }
+            }
+            if self.lines.length == 0 {
+                let self.lines = [joined_line]
+            }
+            if line > self.lines[-1].line {
+                let self.lines = self.lines + [joined_line]
+            }
+        }
+        self.update_file()
+    },
+    file_content: (self) {
+        return self.lines.map(l => "{} {}".fmt([l.line, l.content])).join("\n")
+    },
+    update_file: (self) {
+        $.writefile(self.file_path, self.file_content())
+    },
+    clear_variables: (self) {
+        self.variables = {}
+    },
+    execute_command: (self, command: @string) {
+        parsed = parse_command(command)
+        if parsed.error {
+            return $.print("Syntax Error")
+        }
+        match parsed.operator {
+            =="GOTO": () {
+                self.index = parsed.arguments[0] as @number
+            } (),
+            else: (){ $.print("Syntax error") }()
+        }
+    },
+    handle_cli_input: (self, command: @string) {
+        let command = command.trim()
+        if command.length == 0 { continue }
+        if command.find(r"^[0-9]+ *.+$|^[0-9]+$") {
+            let parsed = parse_line(command)
+            self.update_line(parsed.line, parsed.content)
+        } else {
+            self.execute_command(command)
+        }
+    },
+}

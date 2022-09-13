@@ -1,0 +1,35 @@
+keywords = [
+    "goto",
+    "on",
+    "if",
+    "then",
+    "for",
+    "to",
+    "step",
+    "next",
+    "gosub",
+    "return",
+    "pop",
+    // "onerr", // wtf?
+    "resume",
+    "stop",
+    "cont",
+    "end",
+].map(s => s.uppercase())
+
+operators = [
+    "=", "-", "+", "/", "*", "^", // ^ is actually exponent, not xor (= is both assign and comparison)
+    "and", "or", "not", // bool ops
+    "<", ">",
+    "<=", "=<",
+    "=>", ">=",
+    "#", "<>", "><", // == is actually = and != is # for some reason
+].map(s => s.uppercase())
+
+separator = ":"
+
+return {
+    keywords,
+    operators,
+    separator,
+}

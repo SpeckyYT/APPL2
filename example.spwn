@@ -1,0 +1,10 @@
+import "./src/index.spwn"
+
+$.print("\u{1B}[2J\u{1B}[1;1H");
+
+let file = @basic_file::new("file.basic")
+
+while true {
+    command = $.get_input("]").trim()
+    file.handle_cli_input(command)
+}
